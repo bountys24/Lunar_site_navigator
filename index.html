@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lunar Site Navigator</title>
+  <meta name="description" content="Lunar south pole landing site planner: real NASA LOLA terrain, Sun and Earth visibility, landing verdict.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="mode-simple">
+  <canvas id="stars" aria-hidden="true"></canvas>
+  <div id="loading" class="hidden"></div>
+  <!-- ЗАСТАВКА -->
+  <div id="splash" class="splash">
+    <div class="splash-inner">
+      <p class="splash-kicker">NASA SPACE APPS CHALLENGE 2026</p>
+      <h1 class="splash-title">Lunar Site<br>Navigator</h1>
+      <p class="splash-sub" id="splashSub">Where can we land on the Moon — and when?</p>
+      <div class="splash-chips">
+        <span>NASA LOLA · 80 m terrain · 5 m hazards</span><span>JPL Horizons · 0.004°</span><span>18 landing sites</span>
+      </div>
+      <button id="splashGo" class="splash-btn" disabled><span id="splashBtnTxt">Loading NASA data…</span></button>
+      <div class="splash-lang"><button data-slang="en">EN</button><button data-slang="ru">RU</button></div>
+    </div>
+  </div>
+
+  <!-- ВЕРХНЯЯ ПАНЕЛЬ -->
+  <header class="top">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <div>
+        <small class="hud-kicker">LUNAR SITE NAVIGATOR · MISSION CONSOLE</small>
+        <b id="hudTitle">SOUTH POLE</b>
+      </div>
+    </div>
+    <div class="clock"><span>UTC</span><b id="clock">--:--:--</b></div>
+    <div class="top-ctrl">
+      <button id="btnTour" class="btn small tour-btn"></button>
+      <div class="seg" id="modeSeg">
+        <button data-mode="simple" data-i18n="mode.simple"></button>
+        <button data-mode="expert" data-i18n="mode.expert"></button>
+      </div>
+      <div class="seg" id="langSeg">
+        <button data-lang="en">EN</button>
+        <button data-lang="ru">RU</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app">
+    <!-- КАРТА -->
+    <section class="map-wrap">
+      <div id="globe" class="globe"></div>
+      <canvas id="map" class="hidden"></canvas>
+      <div class="map-top">
+        <select id="sitePick"></select>
+      </div>
+      <div class="map-ctrl">
+        <button id="goPole" class="pole-btn"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg> <span data-i18n="map.pole"></span></button>
+        <button id="goSpace" class="pole-btn"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.6"/><circle cx="14.5" cy="14" r="2.2"/><circle cx="15" cy="8" r="1"/></svg> <span data-i18n="map.space"></span></button>
+        <div class="zoom2d hidden"><button id="zIn" title="Zoom in">+</button><button id="zOut" title="Zoom out">−</button><button id="zReset" title="Reset">⟲</button></div>
+      </div>
+      <div class="map-hover expert-only" id="hover"></div>
+      <div class="map-hint" data-i18n="map.hint"></div>
+      <!-- HUD «пульт корабля» -->
+      <div class="hud hud-corner tl"></div><div class="hud hud-corner tr"></div><div class="hud hud-corner bl"></div><div class="hud hud-corner br"></div>
+      <div class="hud hud-reticle" id="hudReticle"><svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="58" class="dash"/><circle cx="100" cy="100" r="38"/><circle cx="100" cy="100" r="3" class="dot"/>
+        <path d="M0 100H50M150 100H200M100 0V50M100 150V200"/></svg><div class="hud-tag" id="hudTag"></div></div>
+      <div class="hud hud-gauges" id="hudGauges"></div>
+      <div class="hud hud-go" id="hudGo"></div>
+      <div class="hud hud-side" id="hudSide">NASA LOLA 80 M TERRAIN · 5 M HAZARDS · JPL HORIZONS 0.004°</div>
+      <div class="hud hud-scan"></div>
+      <div class="history" id="history"></div>
+    </section>
+
+    <button id="panelToggle" class="panel-toggle" title="">◂</button>
+    <!-- ПАНЕЛЬ ВЕРДИКТА -->
+    <aside class="panel" id="panel">
+      <div id="verdict" class="verdict">
+        <div class="v-light"></div>
+        <div>
+          <div class="v-title" id="vTitle">—</div>
+          <div class="v-name" id="vName"></div>
+        </div>
+      </div>
+      <p class="v-prelim" data-i18n="v.prelim"></p>
+      <p id="vNote" class="v-note"></p>
+      <p id="vWarn" class="v-warn hidden"></p>
+      <button id="btnReplay" class="btn replay hidden"></button>
+      <p id="vSummary" class="v-summary simple-only"></p>
+
+      <div class="answers">
+        <div class="ans" id="ansLight"><span data-i18n="q.light"></span><b>—</b></div>
+        <div class="ans" id="ansLink"><span data-i18n="q.link"></span><b>—</b></div>
+        <div class="ans wide" id="ansSunset"><span data-i18n="q.sunset"></span><b class="mono">—</b><small></small></div>
+        <div class="ans wide" id="ansLos"><span></span><b class="mono">—</b><small></small></div>
+      </div>
+
+      <ul class="checks" id="checks"></ul>
+
+      <div class="expert-box expert-only">
+        <h4 data-i18n="ex.title"></h4>
+        <div class="ex-row"><label><span data-i18n="ex.lat"></span><input id="exLat" type="number" step="0.0001"></label>
+          <label><span data-i18n="ex.lon"></span><input id="exLon" type="number" step="0.0001"></label>
+          <button id="exGo" class="btn small" data-i18n="ex.go"></button></div>
+        <div class="ex-row">
+          <label><span data-i18n="ex.maxSlope"></span><input id="exSlope" type="number" min="1" max="40" value="10"></label>
+          <label><span data-i18n="ex.minSun"></span><input id="exSun" type="number" min="0" max="100" value="70"></label>
+          <label><span data-i18n="ex.minEarth"></span><input id="exEarth" type="number" min="0" max="100" value="50"></label>
+        </div>
+        <div class="ex-row">
+          <label id="mastLbl"><span data-i18n="ex.mast"></span><select id="exMast"><option value="2">2 m</option><option value="5">5 m</option><option value="10">10 m</option><option value="20">20 m</option></select></label>
+          <label><span data-i18n="p.mission"></span><input id="mission" type="number" min="1" max="30" value="14"></label>
+        </div>
+        <p class="ex-note" id="mastNote"></p>
+        <p class="ex-acc" id="exAcc"></p>
+      </div>
+
+      <div class="expert-box expert-only energy-box">
+        <h4 data-i18n="en.title"></h4>
+        <div class="ex-row">
+          <label><span data-i18n="en.area"></span><input id="enArea" type="number" min="0.1" step="0.1" value="4"></label>
+          <label><span data-i18n="en.eff"></span><input id="enEff" type="number" min="1" max="45" value="28"></label>
+          <label><span data-i18n="en.load"></span><input id="enLoad" type="number" min="1" step="10" value="150"></label>
+        </div>
+        <div id="enOut" class="en-out"></div>
+      </div>
+
+      <dl class="info expert-only">
+        <div><dt data-i18n="p.coords"></dt><dd id="pCoords" class="mono">—</dd></div>
+        <div><dt data-i18n="p.elev"></dt><dd id="pElev" class="mono">—</dd></div>
+        <div><dt data-i18n="p.slope"></dt><dd id="pSlope" class="mono">—</dd></div>
+        <div class="expert-only"><dt data-i18n="p.terrain"></dt><dd id="pTerrain">—</dd></div>
+      </dl>
+
+      <details class="verified" id="verifiedBox">
+        <summary><span data-i18n="vf.title"></span><i class="ico" data-ico="ok"></i></summary>
+        <ul id="verifiedList"></ul>
+      </details>
+
+      <details class="ground" id="groundBox">
+        <summary><span data-i18n="g.title"></span><i id="groundIcon"></i></summary>
+        <ul id="groundList"></ul>
+      </details>
+
+      <div class="actions">
+        <button id="btn3d" class="btn primary"><svg class="ic" viewBox="0 0 24 24"><path d="M15 10l5-3v10l-5-3M3 7h12v10H3z"/></svg> <span data-i18n="btn.3d"></span></button>
+        <button id="btnBrief" class="btn brief-btn"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"/></svg> <span id="btnBriefTxt">Mission briefing</span></button>
+        <div class="act-row">
+          <button id="btnCompare" class="btn expert-only"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="btn.compare"></span></button>
+          <button id="btnQuick" class="btn"><svg class="ic" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></svg> <span data-i18n="btn.quick"></span></button>
+          <button id="btnCsv" class="btn expert-only"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11m-5-5l5 5 5-5M5 20h14"/></svg> <span data-i18n="btn.csv"></span></button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- НИЖНЯЯ ЧАСТЬ: ВРЕМЯ + ВКЛАДКИ -->
+    <section class="bottom">
+      <div class="timebar">
+        <label class="tb-date"><span data-i18n="time.title"></span>
+          <input id="date" type="datetime-local" step="60">
+        </label>
+        <div class="tb-steps">
+          <button data-step="-1440">−1d</button><button data-step="-60" class="expert-only">−1h</button>
+          <button data-step="-10" class="expert-only">−10m</button><button data-step="-1" class="expert-only">−1m</button>
+          <button id="now" data-i18n="time.now"></button>
+          <button data-step="1" class="expert-only">+1m</button><button data-step="10" class="expert-only">+10m</button>
+          <button data-step="60" class="expert-only">+1h</button><button data-step="1440">+1d</button>
+        </div>
+        <div class="tb-play">
+          <button id="play" class="btn primary small"></button>
+          <select id="speed" class="expert-only">
+            <option value="1" data-i18n="st.1m"></option>
+            <option value="10" data-i18n="st.10m"></option>
+            <option value="60" data-i18n="st.1h" selected></option>
+            <option value="360" data-i18n="st.6h"></option>
+            <option value="1440" data-i18n="st.1d"></option>
+          </select>
+        </div>
+        <input id="slider" class="tb-slider" type="range" min="0" max="43199" value="0">
+      </div>
+
+      <nav class="tabs" id="tabs">
+        <button data-tab="sky" class="active" data-i18n="tab.sky"></button>
+        <button data-tab="month" class="expert-only" data-i18n="tab.month"></button>
+        <button data-tab="near" data-i18n="tab.near"></button>
+        <button data-tab="dates" class="expert-only" data-i18n="tab.dates"></button>
+        <button data-tab="year" class="expert-only" data-i18n="tab.year"></button>
+        <button data-tab="compare" class="expert-only" data-i18n="tab.compare"></button>
+        <button data-tab="learn" data-i18n="tab.learn"></button>
+        <button data-tab="windows" class="expert-only" data-i18n="tab.windows"></button>
+      </nav>
+
+      <div class="tab-body">
+        <div class="tab" id="tab-sky">
+          <svg id="sky" class="sky"></svg>
+          <div class="metrics" id="metrics"></div>
+          <p class="hint" data-i18n="sky.hint"></p>
+        </div>
+        <div class="tab hidden" id="tab-month">
+          <div class="tl-wrap"><svg id="timeline" class="timeline"></svg><div id="tlTip" class="tl-tip"></div></div>
+          <p class="hint" data-i18n="tl.hint"></p>
+          <div class="metrics" id="metrics30"></div>
+        </div>
+        <div class="tab hidden" id="tab-near">
+          <div class="near-grid">
+            <div><div class="near-head"><span data-i18n="sens.title"></span>
+              <label><span data-i18n="sens.step"></span> <select id="sensStep"><option value="0.25">250 m</option><option value="0.5" selected>500 m</option><option value="1">1 km</option><option value="2">2 km</option></select></label></div>
+              <div id="sensBox" class="sens-box"></div></div>
+            <div id="sensInfo" class="sens-info"></div>
+          </div>
+        </div>
+        <div class="tab hidden" id="tab-dates">
+          <h4 class="sub" data-i18n="dl.title"></h4>
+          <div id="delayBox"></div>
+          <h4 class="sub" data-i18n="fd.title"></h4>
+          <div class="fd-controls">
+            <label><span data-i18n="fd.months"></span><select id="fdMonths"><option value="1">1</option><option value="3" selected>3</option><option value="6">6</option></select></label>
+            <label><span data-i18n="fd.sun"></span><input id="fdSun" type="number" min="0" max="100" value="70"></label>
+            <label><span data-i18n="fd.earth"></span><input id="fdEarth" type="number" min="0" max="100" value="50"></label>
+          </div>
+          <div class="strip-wrap"><canvas id="fdStrip"></canvas></div>
+          <p class="hint" data-i18n="fd.hint"></p>
+          <div id="fdList" class="fd-list"></div>
+        </div>
+        <div class="tab hidden" id="tab-year">
+          <div id="yearBox" class="year-box"></div>
+          <div class="metrics" id="yearInfo"></div>
+          <p class="hint" data-i18n="yr.hint"></p>
+        </div>
+        <div class="tab hidden" id="tab-compare">
+          <div class="near-head"><span data-i18n="cmp.hint"></span><button id="cmpClear" class="btn small" data-i18n="cmp.clear"></button></div>
+          <div id="cmpBox"></div>
+        </div>
+        <div class="tab hidden" id="tab-learn">
+          <table class="dtable learn-table">
+            <thead><tr><th></th><th><i class="ico" data-ico="earth"></i><span data-i18n="lr.earth"></span></th><th><i class="ico" data-ico="moon"></i><span data-i18n="lr.moon"></span></th></tr></thead>
+            <tbody>
+              <tr><td data-i18n="lr.r1"></td><td data-i18n="lr.r1e"></td><td data-i18n="lr.r1m"></td></tr>
+              <tr><td data-i18n="lr.r2"></td><td data-i18n="lr.r2e"></td><td data-i18n="lr.r2m"></td></tr>
+              <tr><td data-i18n="lr.r3"></td><td data-i18n="lr.r3e"></td><td data-i18n="lr.r3m"></td></tr>
+              <tr><td data-i18n="lr.r4"></td><td data-i18n="lr.r4e"></td><td data-i18n="lr.r4m"></td></tr>
+              <tr><td data-i18n="lr.r5"></td><td data-i18n="lr.r5e"></td><td data-i18n="lr.r5m"></td></tr>
+              <tr><td data-i18n="lr.r6"></td><td data-i18n="lr.r6e"></td><td data-i18n="lr.r6m"></td></tr>
+            </tbody>
+          </table>
+          <div class="learn-cards">
+            <article><i class="ico" data-ico="sun"></i><b data-i18n="lr.c1t"></b><p data-i18n="lr.c1"></p></article>
+            <article><i class="ico" data-ico="mount"></i><b data-i18n="lr.c2t"></b><p data-i18n="lr.c2"></p></article>
+            <article><i class="ico" data-ico="earth"></i><b data-i18n="lr.c3t"></b><p data-i18n="lr.c3"></p></article>
+            <article><i class="ico" data-ico="cal"></i><b data-i18n="lr.c4t"></b><p data-i18n="lr.c4"></p></article>
+          </div>
+        </div>
+        <div class="tab hidden" id="tab-windows">
+          <div class="win-grid"><div><h4 data-i18n="w.sun"></h4><ul id="wSun"></ul></div><div><h4 data-i18n="w.earth"></h4><ul id="wEarth"></ul></div></div>
+          <h4 class="sub" data-i18n="w.mask"></h4>
+          <div id="maskTable" class="mask-table"></div>
+          <button id="btnMaskCsv" class="btn small" data-i18n="w.maskCsv"></button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer data-i18n="footer"></footer>
+
+  <div id="tourCap" class="tour-cap"></div>
+  <div id="helpPop" class="help-pop hidden"></div>
+
+  <!-- 3D-ВИД ОТ ПЕРВОГО ЛИЦА -->
+  <div id="v3d" class="v3d hidden">
+    <div id="v3dCanvas" class="v3d-canvas">
+      <div class="h8 h8-corner tl"></div><div class="h8 h8-corner tr"></div><div class="h8 h8-corner bl"></div><div class="h8 h8-corner br"></div>
+      <div class="h8 h8-title" id="h8title"></div>
+      <div class="h8 h8-clock" id="h8clock"></div>
+      <div class="h8 h8-boxes"><div class="h8-box" id="h8sun"></div><div class="h8-box" id="h8earth"></div><div class="h8-box" id="h8slope"></div></div>
+      <div class="h8 h8-tape l" id="h8alt"></div><div class="h8 h8-tape r" id="h8spd"></div>
+      <div class="h8 h8-chev"><svg viewBox="0 0 340 40"><path d="M0 20 H80 M100 20 L170 4 L240 20 M260 20 H340"/></svg></div>
+      <div class="h8 h8-legend" id="h8legend"></div>
+      <div class="h8 h8-go" id="h8go"></div>
+      <div class="h8 h8-scan"></div>
+      <div class="v3d-hint" data-i18n="v3d.hint"></div>
+      <small id="v3dTitle" hidden></small>
+    </div>
+    <div class="v3d-bar">
+      <div class="v3d-btns">
+        <button id="v3dLand" class="btn small">▼ <span data-i18n="v3d.land"></span></button>
+        <button id="v3dTl" class="btn small tl">▶▶ <span data-i18n="v3d.tl"></span></button>
+        <button id="v3dSun" class="btn small"><i class="ico" data-ico="sun"></i><span data-i18n="v3d.sun"></span></button>
+        <button id="v3dEarth" class="btn small"><i class="ico" data-ico="earth"></i><span data-i18n="v3d.earth"></span></button>
+      </div>
+      <div class="v3d-steps">
+        <button data-v3step="-1440">−1d</button><button data-v3step="-60">−1h</button><button data-v3step="-10">−10m</button>
+        <button id="v3dPlay" class="play">▶ / ❚❚</button>
+        <button data-v3step="10">+10m</button><button data-v3step="60">+1h</button><button data-v3step="1440">+1d</button>
+      </div>
+      <div id="v3dHud" class="v3d-hud"></div>
+      <button id="v3dClose" class="btn small">✕ <span data-i18n="v3d.close"></span></button>
+    </div>
+  </div>
+
+  <script src="vendor/astronomy.browser.min.js"></script>
+  <script src="vendor/three.min.js"></script>
+  <script src="data/pole_dem.js"></script>
+  <script src="data/pole_dem2.js"></script>
+  <script src="data/pole_slope.js"></script>
+  <script src="data/moon_tex.js"></script>
+  <script src="data/moon_dem.js"></script>
+  <script src="data/moon_dem2.js"></script>
+  <script src="data/earth_tex.js"></script>
+  <script src="data/sky_tex.js"></script>
+  <script src="data/detail0.js"></script>
+  <script src="data/detail1.js"></script>
+  <script src="data/detail2.js"></script>
+  <script src="data/detail3.js"></script>
+  <script src="data/detail4.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/terrain.js"></script>
+  <script src="js/sites.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/analysis.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/bodies.js"></script>
+  <script src="js/globe.js"></script>
+  <script src="js/sky.js"></script>
+  <script src="js/timeline.js"></script>
+  <script src="js/stars.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/view3d.js"></script>
+  <script src="js/extras.js"></script>
+  <script src="js/extras2.js"></script>
+</body>
+</html>
